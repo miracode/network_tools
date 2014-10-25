@@ -76,25 +76,30 @@ class ProtocolWorker(Thread):
 
     def receive_message(self, conn):
         message = ""
-        while not message.endswith("\r\n"):
+        while not message.endswith("\r\n\r\n"):
             received = conn.recv(1024)
             message += received
         return message
 
     def parse_message(self, message):
         parsed = message.split()
-        method = parsed[0]
-        protocol = parsed[2]
-        return method, protocol
+        try:
+            method = parsed[0]
+            protocol = parsed[2]
+            return method, protocol
+        except IndexError:
+            return None, None
 
     def return_response(self, method, protocol):
         if method == 'GET':
             if protocol == 'HTTP/1.1':
-                return '%s 200 OK\r\n\r\n' % protocol
+                return 'HTTP/1.1 200 OK\r\n\r\n'
             else:
-                return '%s 505 HTTP Version Not Supported\r\n\r\n' % protocol
+                return 'HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n'
+        elif method in ['POST', 'HEAD', 'DELETE', 'PUT', 'TRACE', 'CONNECT']:
+            return 'HTTP/1.1 405 Method Not Allowed\r\n\r\n'
         else:
-            return '%s 405 Method Not Allowed\r\n\r\n' % method
+            return 'HTTP/1.1 400 Bad Request\r\n\r\n'
 
 
 class HttpProtocolWorker(ProtocolWorker):
@@ -107,7 +112,8 @@ class HttpProtocolWorker(ProtocolWorker):
         print "HttpProtocolWorker got all data:"
         method, protocol = self.parse_message(message)
         response = self.return_response(method, protocol)
-        print "response:" + response  # cut off return lines
+        print "Recieved:", message
+        print "Repsonse:", response
         conn.sendall(response)
         print "HttpProtocolWorker done"
 
